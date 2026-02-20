@@ -1,0 +1,22 @@
+---
+# defaults file for atb-ansible-loradevices
+
+ttn_userid: "admin"
+target_port: 1700
+
+gateway_eui: ""
+app_id: "application01"
+
+tracker_id: "tracker01"
+tracker_deveui: ""
+tracker_joineui: ""
+tracker_appkey: ""
+tracker_nwkskey: ""
+tracker_appskey: ""
+tracker_devaddr: ""
+
+button_id: "button01"
+button_deveui: ""
+button_appeui: ""
+button_appkey: ""
+

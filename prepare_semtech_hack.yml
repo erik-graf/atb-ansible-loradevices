@@ -1,0 +1,44 @@
+- name: Get device session keys
+  #community.docker.docker_container_exec:
+  #container: stack
+  command: "docker exec stack ttn-lw-cli devices info {{app_id}} {{tracker_id}} --session.keys"
+  register: tts_device_info
+  changed_when: false
+
+- name: Print stdout
+  ansible.builtin.debug:
+    var: tts_device_info.stdout
+    #no_log: true
+
+- name: Normalize device info to dict
+  set_fact:
+    tts_info: "{{ tts_device_info.stdout if (tts_device_info.stdout is mapping) else (tts_device_info.stdout | from_json) }}"
+  changed_when: false
+    #no_log: true
+
+- name: Fail if no session keys are present (device not joined or flag missing)
+  fail:
+    msg: "No session keys found in CLI output. Ensure the command includes --session.keys and the device has an active session."
+  when: >
+    tts_info is not mapping
+    or ('session' not in tts_info)
+    or ('keys' not in tts_info['session'])
+    or ('nwk_s_enc_key' not in tts_info['session']['keys'])
+    or ('app_s_key' not in tts_info['session']['keys'])
+
+- name: Extract keys
+  set_fact:
+    nwk_s_enc_key: "{{ tts_info['session']['keys']['nwk_s_enc_key']['key'] }}"
+    app_s_key: "{{ tts_info['session']['keys']['app_s_key']['key'] }}"
+    dev_addr_be: "{{ tts_info['ids']['dev_addr'] }}"
+    dev_addr_le: "{{ (tts_info['ids']['dev_addr'] | lower) | regex_replace('(..)(..)(..)(..)', '\\4\\3\\2\\1') | upper }}"
+
+
+- name: Copy env.j2 to LoRa gateway
+  template:
+    #src: "{{ playbook_dir }}/env.j2"
+    src: env.j2
+    dest: /home/pi/semtech-loratool/src/.env
+    mode: "0644"
+  delegate_to: loragw
+    #when: env_file.stat.exists

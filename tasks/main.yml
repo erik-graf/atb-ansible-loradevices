@@ -1,0 +1,115 @@
+---
+#- name: Show Docker-related env
+#  shell: |
+#    echo "DOCKER_HOST=$DOCKER_HOST"
+#    docker context show 2>/dev/null || true
+#    docker info >/dev/null && echo "docker CLI ok"
+#  register: diag
+#  changed_when: false
+#  become: true
+#
+#- debug:
+#    var: diag.stdout_lines
+
+- name: Install docker python deps from apt
+  ansible.builtin.apt:
+    name:
+      - python3-docker
+      - python3-requests-unixsocket
+      - python3-requests
+    state: present
+    update_cache: true
+  become: true
+
+    #- name: Show python used by Ansible
+    #  ansible.builtin.command: "{{ ansible_python_interpreter }} -c 'import sys; print(sys.executable); print(sys.version)'"
+    #  changed_when: false
+    #
+- name: Ensure pip is installed
+  ansible.builtin.apt:
+    name: python3-pip
+    state: present
+    update_cache: true
+  become: true
+    
+    
+    #- name: Install Docker SDK + unix socket adapter (pip)
+    #  ansible.builtin.pip:
+    #    name:
+    #      - docker
+    #      - requests-unixsocket
+    #    executable: pip3
+    #  become: true
+    #        
+    
+    #- name: Verify docker + requests_unixsocket import works
+    #  ansible.builtin.command: "{{ ansible_python_interpreter }} -c 'import docker, requests_unixsocket; print(docker.__version__)'"
+    #  changed_when: false
+
+- name: Restart docker 
+  ansible.builtin.service:
+    name: docker
+    state: restarted
+    daemon_reload: true
+
+- name: Pause for a few seconds to let docker restart
+  ansible.builtin.pause:
+    seconds: 15
+
+- name: Register gateway
+  community.docker.docker_container_exec:
+    docker_host: "unix:///var/run/docker.sock"
+    container: stack
+    command: "ttn-lw-cli gateways create loragw-testbed-local --user-id {{ttn_userid}} --frequency-plan-id EU_863_870 --gateway-eui {{gateway_eui}} --enforce-duty-cycle"
+  become: true
+  register: result
+
+- name: Print stdout
+  ansible.builtin.debug:
+    var: result.stdout
+
+- name: Create application
+  community.docker.docker_container_exec:
+    container: stack
+    command: "ttn-lw-cli applications create {{app_id}} --user-id {{ttn_userid}}"
+  register: result
+
+- name: Print stdout
+  ansible.builtin.debug:
+    var: result.stdout
+
+      # OTAA Join
+      #- name: Create tracker01
+      #  community.docker.docker_container_exec:
+      #    container: stack
+      #    command: "ttn-lw-cli devices create {{app_id}} {{tracker_id}} --dev-eui {{tracker_deveui}} --join-eui {{tracker_joineui}} --root-keys.app-key.key {{tracker_appkey}} --session.dev-addr 3d854201 --frequency-plan-id EU_863_870_TTN --lorawan-version MAC_V1_0_2 --lorawan-phy-version PHY_V1_0_2_REV_B --supports-join "
+      #  register: result
+
+# ABP Join
+- name: Create tracker01
+  community.docker.docker_container_exec:
+    container: stack
+    command: "ttn-lw-cli devices create application01 tracker01 --abp --dev-eui {{tracker_deveui}} --join-eui {{tracker_joineui}} --session.keys.nwk-s-key.key {{tracker_nwkskey}} --session.keys.app-s-key.key {{tracker_appskey}}  --session.dev-addr {{tracker_devaddr}} --frequency-plan-id EU_863_870_TTN --lorawan-version MAC_V1_0_2 --lorawan-phy-version PHY_V1_0_2_REV_B "
+  register: result
+
+
+- name: Print stdout
+  ansible.builtin.debug:
+    var: result.stdout
+
+      #- name: Create button01
+      #  community.docker.docker_container_exec:
+      #    container: stack
+      #    command: "ttn-lw-cli devices create {{app_id}} {{button_id}} --dev-eui {{button_deveui}} --join-eui {{button_appeui}} --root-keys.app-key.key {{button_appkey}} --frequency-plan-id EU_863_870_TTN --lorawan-version MAC_V1_0_2 --lorawan-phy-version PHY_V1_0_2_REV_B --supports-join "
+      #  register: result
+
+- name: Print stdout
+  ansible.builtin.debug:
+    var: result.stdout
+
+- name: Change IP in dnsmasq conf after everything is done, for production
+  ansible.builtin.replace:
+    path: /etc/dnsmasq.d/ttnstack.conf
+    regexp: "address=/lorawan.newsroom.local/127.0.0.1"
+    replace: "address=/lorawan.newsroom.local/172.17.100.129"
+
