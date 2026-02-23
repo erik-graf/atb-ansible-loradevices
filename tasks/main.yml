@@ -89,7 +89,7 @@
 - name: Create tracker01
   community.docker.docker_container_exec:
     container: stack
-    command: "ttn-lw-cli devices create application01 tracker01 --abp --dev-eui {{tracker_deveui}} --join-eui {{tracker_joineui}} --session.keys.nwk-s-key.key {{tracker_nwkskey}} --session.keys.app-s-key.key {{tracker_appskey}}  --session.dev-addr {{tracker_devaddr}} --frequency-plan-id EU_863_870_TTN --lorawan-version MAC_V1_0_2 --lorawan-phy-version PHY_V1_0_2_REV_B "
+    command: "ttn-lw-cli devices create {{app_id}} {{tracker_id}} --abp --dev-eui {{tracker_deveui}} --join-eui {{tracker_joineui}} --session.keys.nwk-s-key.key {{tracker_nwkskey}} --session.keys.app-s-key.key {{tracker_appskey}}  --session.dev-addr {{tracker_devaddr}} --frequency-plan-id EU_863_870_TTN --lorawan-version MAC_V1_0_2 --lorawan-phy-version PHY_V1_0_2_REV_B "
   register: result
 
 
@@ -97,13 +97,41 @@
   ansible.builtin.debug:
     var: result.stdout
 
+- name: Create new TTN API key
+  community.docker.docker_container_exec:
+    container: stack
+    command: >-
+      ttn-lw-cli applications api-keys create {{ app_id }}
+      --name "{{app_id}}-api-key"
+      --right-application-link
+      --right-application-traffic-read
+  register: tts_api_key_create
+  run_once: true
+
+- name: Extract API key value
+  ansible.builtin.set_fact:
+    tts_api_key_value: >-
+      {{ tts_api_key_create.stdout
+         | regex_search('(?m)^\\s*"key"\\s*:\\s*"([^"]+)"', '\\1') }}
+  run_once: true
+
+- name: Save API key on controller (overwrite)
+  ansible.builtin.copy:
+    dest: "./generated_secrets/{{ tts_app_id }}.api_key"
+    content: "{{ tts_api_key_value }}\n"
+    mode: "0644"
+  delegate_to: localhost
+  register: result
+  run_once: true
+
+
       #- name: Create button01
       #  community.docker.docker_container_exec:
       #    container: stack
       #    command: "ttn-lw-cli devices create {{app_id}} {{button_id}} --dev-eui {{button_deveui}} --join-eui {{button_appeui}} --root-keys.app-key.key {{button_appkey}} --frequency-plan-id EU_863_870_TTN --lorawan-version MAC_V1_0_2 --lorawan-phy-version PHY_V1_0_2_REV_B --supports-join "
       #  register: result
 
-- name: Print stdout
+- name: Print stdout of saving API key on controller
   ansible.builtin.debug:
     var: result.stdout
 

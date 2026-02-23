@@ -20,3 +20,8 @@ button_deveui: ""
 button_appeui: ""
 button_appkey: ""
 
+tts_stack_container: stack
+# Where to store the key on the Ansible controller:
+tts_key_store_dir: "./generated_secrets"
+tts_key_store_file: "{{ tts_key_store_dir }}/{{ app_id }}.api_key"
+
